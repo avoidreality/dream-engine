@@ -1,0 +1,34 @@
+# Python
+venv/
+__pycache__/
+.env
+*.pyc
+
+# API keys
+config.py
+secrets.py
+
+# Generated AI Images
+generated/
+
+# Unity
+[Ll]ibrary/
+[Tt]emp/
+[Bb]uid/
+[Ll]ogs/
+UserSettings/
+obj/
+Assembly-CSharp.csproj
+DreamEngine.sln
+
+# macOS
+.DS_Store
+
+# IDE/editor
+.idea/
+.vs/
+*.csproj
+*.sln
+*.user
+*.userprefs
+
