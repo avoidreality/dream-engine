@@ -27,6 +27,12 @@ public class InputScreenManager : MonoBehaviour
     private int fear = 3;
     private int integrity = 5;
     private int obsession = 0;
+    private const int maxTurns = 3;
+    private int turnCount = 0;
+    private const int turnsBeforeFinalObstacle = 2;
+    private bool finalObstacleShown = false;
+    private bool gameEnded = false;
+    public GameObject choiceButtonRow;
 
     void Start()
     {
@@ -51,6 +57,7 @@ public class InputScreenManager : MonoBehaviour
         Debug.Log("Starting coroutine...");
         StartCoroutine(GenerateChapter());
         Debug.Log("Coroutine started!");
+        turnCount++;
     }
 
     IEnumerator GenerateChapter()
@@ -65,7 +72,7 @@ public class InputScreenManager : MonoBehaviour
 
         // --- CALL CLAUDE ---
         string storyPrompt = $"A person dreams of {currentDream} but faces these obstacles: {currentObstacles}. " +
-                             "Write a short dramatic opening chapter event of 2-3 sentences. " +
+                             "Write a short dramatic opening chapter event of 2-3 sentences, under 90 words total. " +
                              "Make it emotional and specific. No headers or titles, just the story. Don't address the end-user by a specific name unless told to. Write in second person perspective.";
 
         string storyJson = JsonUtility.ToJson(new PromptRequest { prompt = storyPrompt });
@@ -189,20 +196,24 @@ public class InputScreenManager : MonoBehaviour
         obsession += 1;
         stability -= 1;
 
-        Debug.Log("Player chose: CHASE DREAM");
-        LogCurrentStats();
-
-        StartCoroutine(GenerateNextChapter("Chase Dream"));
+        ProcessChoice("Chase Dream");
     }
 
     public void OnPreserveSelfClicked()
     {
-        Debug.Log("Player chose: PRESERVE SELF");
+        stability += 2;
+        fear -= 1;
+
+        ProcessChoice("Preserve Self");
     }
 
     public void OnEscapeNightmareClicked()
     {
-        Debug.Log("Player chose: ESCAPE NIGHTMARE");
+        fear -= 2;
+        dreamProgress -= 1;
+        integrity -= 1;
+
+        ProcessChoice("Escape Nightmare");
     }
 
     private void LogCurrentStats()
@@ -214,6 +225,39 @@ public class InputScreenManager : MonoBehaviour
             $"Integrity: {integrity}, " +
             $"Obsession: {obsession}"
         );
+    }
+
+    private void ProcessChoice(string chosenAction)
+    {
+        if (gameEnded)
+        {
+            return;
+        }
+
+        ClampStats();
+        LogCurrentStats();
+
+        Debug.Log("Player chose: " + chosenAction);
+
+        // The player is responding to the cliffhanger.
+        // Their next result should be the ending.
+        if (finalObstacleShown)
+        {
+            StartCoroutine(GenerateEnding(chosenAction));
+            return;
+        }
+
+        turnCount++;
+
+        // After two normal turns, generate the major final obstacle.
+        if (turnCount >= turnsBeforeFinalObstacle)
+        {
+            StartCoroutine(GenerateFinalObstacle(chosenAction));
+        }
+        else
+        {
+            StartCoroutine(GenerateNextChapter(chosenAction));
+        }
     }
 
     IEnumerator GenerateNextChapter(string chosenAction)
@@ -256,6 +300,134 @@ public class InputScreenManager : MonoBehaviour
             chapterText.text = "The dream fractures unexpectedly.";
             Debug.LogError("Next chapter error: " + storyRequest.error);
         }
+    }
+
+    IEnumerator GenerateFinalObstacle(string chosenAction)
+    {
+        chapterText.text = "Something stands between you and the dream...";
+
+        string obstaclePrompt =
+            $"The player's original dream is: {currentDream}. " +
+            $"Their original obstacles are: {currentObstacles}. " +
+            $"The previous chapter was: {currentStory}. " +
+            $"Their most recent action was: {chosenAction}. " +
+            $"Current stats: dream progress {dreamProgress}, stability {stability}, " +
+            $"fear {fear}, integrity {integrity}, obsession {obsession}. " +
+            "Generate a dramatic final obstacle or cliffhanger before the ending. " +
+            "The obstacle should force a painful tradeoff between pursuing the dream, " +
+            "preserving the player's well-being, or escaping the nightmare. " +
+            "Write 2-3 emotionally specific sentences in second-person perspective. " +
+            "Keep the response under 100 words total." + 
+            "Do not resolve the obstacle. End with a tense decision point. No headers.";
+
+        string storyJson =
+            JsonUtility.ToJson(new PromptRequest { prompt = obstaclePrompt });
+
+        UnityWebRequest storyRequest =
+            UnityWebRequest.Post(proxyUrl + "/claude", storyJson, "application/json");
+
+        yield return storyRequest.SendWebRequest();
+
+        if (storyRequest.result == UnityWebRequest.Result.Success)
+        {
+            StoryResponse storyResponse =
+                JsonUtility.FromJson<StoryResponse>(
+                    storyRequest.downloadHandler.text
+                );
+
+            currentStory = storyResponse.text;
+            chapterText.text = currentStory;
+
+            finalObstacleShown = true;
+
+            Debug.Log("Final obstacle: " + currentStory);
+        }
+        else
+        {
+            chapterText.text =
+                "The path fractures beneath you. One last decision remains.";
+
+            finalObstacleShown = true;
+
+            Debug.LogError("Final obstacle error: " + storyRequest.error);
+        }
+    }
+
+    private string DetermineEndingType()
+    {
+        if (dreamProgress >= 4 && stability >= 2)
+        {
+            return "hopeful success";
+        }
+
+        if (dreamProgress >= 4 && obsession >= 3)
+        {
+            return "dark success";
+        }
+
+        if (stability >= 6 && dreamProgress < 4)
+        {
+            return "peaceful release";
+        }
+
+        return "tragic or ambiguous ending";
+    }
+
+    IEnumerator GenerateEnding(string chosenAction)
+    {
+        string endingType = DetermineEndingType();
+
+        chapterText.text = "Your fate is being decided...";
+
+        string endingPrompt =
+            $"The player's original dream is: {currentDream}. " +
+            $"The obstacles are: {currentObstacles}. " +
+            $"The previous chapter was: {currentStory}. " +
+            $"Their final action was: {chosenAction}. " +
+            $"Final stats: dream progress {dreamProgress}, stability {stability}, " +
+            $"fear {fear}, integrity {integrity}, obsession {obsession}. " +
+            $"Write a short {endingType} ending in 3-4 sentences, under 120 words total. " +
+            "Make it emotionally specific. Explain what the player gained and what it cost them. " +
+            "Use second-person perspective. No headers.";
+
+        string storyJson =
+            JsonUtility.ToJson(new PromptRequest { prompt = endingPrompt });
+
+        UnityWebRequest storyRequest =
+            UnityWebRequest.Post(proxyUrl + "/claude", storyJson, "application/json");
+
+        yield return storyRequest.SendWebRequest();
+
+        if (storyRequest.result == UnityWebRequest.Result.Success)
+        {
+            StoryResponse storyResponse =
+                JsonUtility.FromJson<StoryResponse>(
+                    storyRequest.downloadHandler.text
+                );
+
+            currentStory = storyResponse.text;
+            chapterText.text = currentStory;
+
+            Debug.Log("Ending: " + currentStory);
+        }
+        else
+        {
+            chapterText.text = "The dream dissolves before you can understand what it meant.";
+            Debug.LogError("Ending error: " + storyRequest.error);
+        }
+
+        choiceButtonRow.SetActive(false);
+    }
+
+
+
+    private void ClampStats()
+    {
+        fear = Mathf.Max(0, fear);
+        dreamProgress = Mathf.Max(0, dreamProgress);
+        stability = Mathf.Max(0, stability);
+        integrity = Mathf.Max(0, integrity);
+        obsession = Mathf.Max(0, obsession);
     }
 
     [System.Serializable]
