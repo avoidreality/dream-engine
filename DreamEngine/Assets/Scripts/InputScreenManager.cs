@@ -185,7 +185,14 @@ public class InputScreenManager : MonoBehaviour
 
     public void OnChaseDreamClicked()
     {
+        dreamProgress += 2;
+        obsession += 1;
+        stability -= 1;
+
         Debug.Log("Player chose: CHASE DREAM");
+        LogCurrentStats();
+
+        StartCoroutine(GenerateNextChapter("Chase Dream"));
     }
 
     public void OnPreserveSelfClicked()
@@ -196,6 +203,59 @@ public class InputScreenManager : MonoBehaviour
     public void OnEscapeNightmareClicked()
     {
         Debug.Log("Player chose: ESCAPE NIGHTMARE");
+    }
+
+    private void LogCurrentStats()
+    {
+        Debug.Log(
+            $"Stats — Dream Progress: {dreamProgress}, " +
+            $"Stability: {stability}, " +
+            $"Fear: {fear}, " +
+            $"Integrity: {integrity}, " +
+            $"Obsession: {obsession}"
+        );
+    }
+
+    IEnumerator GenerateNextChapter(string chosenAction)
+    {
+        chapterText.text = "Your dream shifts...";
+
+        string nextPrompt =
+            $"The player's original dream is: {currentDream}. " +
+            $"The obstacles are: {currentObstacles}. " +
+            $"The previous chapter was: {currentStory}. " +
+            $"The player chose this action: {chosenAction}. " +
+            $"Current stats: dream progress {dreamProgress}, stability {stability}, " +
+            $"fear {fear}, integrity {integrity}, obsession {obsession}. " +
+            "Write the next dramatic chapter event in 2-3 sentences. " +
+            "Make the consequences of the choice clear. " +
+            "Use second-person perspective. No headers or titles.";
+
+        string storyJson =
+            JsonUtility.ToJson(new PromptRequest { prompt = nextPrompt });
+
+        UnityWebRequest storyRequest =
+            UnityWebRequest.Post(proxyUrl + "/claude", storyJson, "application/json");
+
+        yield return storyRequest.SendWebRequest();
+
+        if (storyRequest.result == UnityWebRequest.Result.Success)
+        {
+            StoryResponse storyResponse =
+                JsonUtility.FromJson<StoryResponse>(
+                    storyRequest.downloadHandler.text
+                );
+
+            currentStory = storyResponse.text;
+            chapterText.text = currentStory;
+
+            Debug.Log("Next chapter: " + currentStory);
+        }
+        else
+        {
+            chapterText.text = "The dream fractures unexpectedly.";
+            Debug.LogError("Next chapter error: " + storyRequest.error);
+        }
     }
 
     [System.Serializable]
