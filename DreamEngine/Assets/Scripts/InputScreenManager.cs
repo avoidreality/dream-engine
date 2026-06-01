@@ -20,6 +20,13 @@ public class InputScreenManager : MonoBehaviour
     private string proxyUrl = "http://127.0.0.1:5001";
     private string currentDream;
     private string currentObstacles;
+    private string currentStory = "";
+
+    private int dreamProgress = 0;
+    private int stability = 5;
+    private int fear = 3;
+    private int integrity = 5;
+    private int obsession = 0;
 
     void Start()
     {
@@ -80,7 +87,9 @@ public class InputScreenManager : MonoBehaviour
                 StoryResponse storyResponse = JsonUtility.FromJson<StoryResponse>(rawResponse);
                 chapterText.text = storyResponse.text;
                 Debug.Log("Story text: " + chapterText.text);
-                
+                chapterText.text = storyResponse.text;
+                currentStory = storyResponse.text;
+
             }
             catch (System.Exception e)
             {
@@ -172,6 +181,21 @@ public class InputScreenManager : MonoBehaviour
         {
             Debug.Log("There was a loading error.");
         }
+    }
+
+    public void OnChaseDreamClicked()
+    {
+        Debug.Log("Player chose: CHASE DREAM");
+    }
+
+    public void OnPreserveSelfClicked()
+    {
+        Debug.Log("Player chose: PRESERVE SELF");
+    }
+
+    public void OnEscapeNightmareClicked()
+    {
+        Debug.Log("Player chose: ESCAPE NIGHTMARE");
     }
 
     [System.Serializable]
