@@ -34,6 +34,10 @@ public class InputScreenManager : MonoBehaviour
     private bool gameEnded = false;
     public GameObject choiceButtonRow;
 
+    [Header("Game Over")]
+    public GameObject gameOverPanel;
+    public TextMeshProUGUI gameOverText;
+
     void Start()
     {
         titleText.text = "DREAM ENGINE";
@@ -120,8 +124,8 @@ public class InputScreenManager : MonoBehaviour
      "Prefer no person in the image. If a human figure must appear, show only an ambiguous silhouette or distant figure. " +
      "Avoid character portrait focus. Emotional, dark, beautiful, dreamlike atmosphere.";
         */
-        string imagePrompt = $"{currentDream}, dramatic cinematic scene, surreal dream atmosphere, " +
-            $"emotional, dark and beautiful, digital art";
+        string imagePrompt = $"{currentDream}, dramatic cinematic scene without people, surreal dream atmosphere, " +
+            $"emotional, dark and beautiful, digital art.";
 
         Debug.Log("Image prompt: " + imagePrompt);
 
@@ -292,6 +296,8 @@ public class InputScreenManager : MonoBehaviour
 
             currentStory = storyResponse.text;
             chapterText.text = currentStory;
+            Debug.Log("Generating new scene image for the next chapter...");
+            GenerateImageForCurrentStory();
 
             Debug.Log("Next chapter: " + currentStory);
         }
@@ -337,6 +343,8 @@ public class InputScreenManager : MonoBehaviour
 
             currentStory = storyResponse.text;
             chapterText.text = currentStory;
+            Debug.Log("Generating new scene image for final obstacle...");
+            GenerateImageForCurrentStory();
 
             finalObstacleShown = true;
 
@@ -407,6 +415,8 @@ public class InputScreenManager : MonoBehaviour
 
             currentStory = storyResponse.text;
             chapterText.text = currentStory;
+            Debug.Log("Generating new scene image for ending...");
+            GenerateImageForCurrentStory();
 
             Debug.Log("Ending: " + currentStory);
         }
@@ -416,7 +426,41 @@ public class InputScreenManager : MonoBehaviour
             Debug.LogError("Ending error: " + storyRequest.error);
         }
 
+        gameEnded = true;
         choiceButtonRow.SetActive(false);
+        gameOverPanel.SetActive(true);
+        gameOverText.text = "DREAM ENDS";
+    }
+
+    public void OnReplayClicked()
+    {
+        turnCount = 0;
+        finalObstacleShown = false;
+        gameEnded = false;
+
+        dreamProgress = 0;
+        stability = 5;
+        fear = 3;
+        integrity = 5;
+        obsession = 0;
+
+        currentDream = "";
+        currentObstacles = "";
+        currentStory = "";
+
+        dreamInputField.text = "";
+        obstaclesInputField.text = "";
+
+        chapterText.text = "";
+        chapterImage.texture = null;
+
+        choiceButtonRow.SetActive(true);
+        gameOverPanel.SetActive(false);
+
+        chapterPanel.SetActive(false);
+        inputPanel.SetActive(true);
+
+        Debug.Log("Game reset.");
     }
 
 
@@ -428,6 +472,65 @@ public class InputScreenManager : MonoBehaviour
         stability = Mathf.Max(0, stability);
         integrity = Mathf.Max(0, integrity);
         obsession = Mathf.Max(0, obsession);
+    }
+
+    IEnumerator GenerateChapterImage(string storyContext)
+    {
+        Debug.Log("Generating image for current chapter...");
+
+        string imagePrompt =
+            $"Create a surreal cinematic digital art scene inspired by this chapter: {storyContext}. " +
+            $"The player's dream is: {currentDream}. " +
+            $"The obstacles are: {currentObstacles}. " +
+            "Focus on atmosphere, symbolism, environment, and mood. " +
+            "Avoid showing a specific person unless necessary. " +
+            "If a person appears, show only a distant ambiguous silhouette. " +
+            "Dark, beautiful, dreamlike visual style.";
+
+        string imageJson =
+            JsonUtility.ToJson(new PromptRequest { prompt = imagePrompt });
+
+        byte[] imageBytes =
+            System.Text.Encoding.UTF8.GetBytes(imageJson);
+
+        UnityWebRequest imageRequest =
+            new UnityWebRequest(proxyUrl + "/image", "POST");
+
+        imageRequest.uploadHandler =
+            new UploadHandlerRaw(imageBytes);
+
+        imageRequest.downloadHandler =
+            new DownloadHandlerBuffer();
+
+        imageRequest.SetRequestHeader(
+            "Content-Type",
+            "application/json"
+        );
+
+        yield return imageRequest.SendWebRequest();
+
+        if (imageRequest.result == UnityWebRequest.Result.Success)
+        {
+            ImageResponse parsedImage =
+                JsonUtility.FromJson<ImageResponse>(
+                    imageRequest.downloadHandler.text
+                );
+
+            Debug.Log("Image path: " + parsedImage.image_path);
+
+            LoadImageFromDisk(parsedImage.image_path);
+        }
+        else
+        {
+            Debug.LogError(
+                "Image generation error: " + imageRequest.error
+            );
+        }
+    }
+
+    private void GenerateImageForCurrentStory()
+    {
+        StartCoroutine(GenerateChapterImage(currentStory));
     }
 
     [System.Serializable]
