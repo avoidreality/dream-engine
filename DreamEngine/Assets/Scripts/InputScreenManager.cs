@@ -11,6 +11,7 @@ public class InputScreenManager : MonoBehaviour
     public TMP_InputField obstaclesInputField;
     public TextMeshProUGUI titleText;
     public GameObject inputPanel;
+    private string selectedImageStyle = "Super Surreal";
 
     [Header("Chapter Screen")]
     public GameObject chapterPanel;
@@ -48,6 +49,7 @@ public class InputScreenManager : MonoBehaviour
     public void OnStartButtonClicked()
     {
         Debug.Log("Button clicked!");
+        Debug.Log("Image Style = " + selectedImageStyle);
         currentDream = dreamInputField.text;
         currentObstacles = obstaclesInputField.text;
         Debug.Log("Dream: " + currentDream + " Obstacles: " + currentObstacles);
@@ -62,6 +64,24 @@ public class InputScreenManager : MonoBehaviour
         StartCoroutine(GenerateChapter());
         Debug.Log("Coroutine started!");
         turnCount++;
+    }
+
+    public void OnSuperSurrealClicked()
+    {
+        selectedImageStyle = "Super Surreal";
+        Debug.Log("Image style: " + selectedImageStyle);
+    }
+
+    public void OnSurrealFunnyClicked()
+    {
+        selectedImageStyle = "Surreal Funny";
+        Debug.Log("Image style: " + selectedImageStyle);
+    }
+
+    public void OnSurrealDarkClicked()
+    {
+        selectedImageStyle = "Surreal Dark";
+        Debug.Log("Image style: " + selectedImageStyle);
     }
 
     IEnumerator GenerateChapter()
@@ -124,37 +144,8 @@ public class InputScreenManager : MonoBehaviour
      "Prefer no person in the image. If a human figure must appear, show only an ambiguous silhouette or distant figure. " +
      "Avoid character portrait focus. Emotional, dark, beautiful, dreamlike atmosphere.";
         */
-        string imagePrompt = $"{currentDream}, dramatic cinematic scene without people, surreal dream atmosphere, " +
-            $"emotional, dark and beautiful, digital art.";
+        StartCoroutine(GenerateChapterImage(currentStory));
 
-        Debug.Log("Image prompt: " + imagePrompt);
-
-        string imageJson = JsonUtility.ToJson(new PromptRequest { prompt = imagePrompt });
-        byte[] imageBytes = System.Text.Encoding.UTF8.GetBytes(imageJson);
-
-        UnityWebRequest imageRequest = new UnityWebRequest(proxyUrl + "/image", "POST");
-        imageRequest.uploadHandler = new UploadHandlerRaw(imageBytes);
-        imageRequest.downloadHandler = new DownloadHandlerBuffer();
-        imageRequest.SetRequestHeader("Content-Type", "application/json");
-
-        yield return imageRequest.SendWebRequest();
-        Debug.Log("Replicate response code: " + imageRequest.responseCode);
-        Debug.Log("Replicate response: " + imageRequest.downloadHandler.text);
-
-        if (imageRequest.result == UnityWebRequest.Result.Success)
-        {
-            string imageResponse = imageRequest.downloadHandler.text;
-            ImageResponse parsedImage = JsonUtility.FromJson<ImageResponse>(imageResponse);
-
-            Debug.Log("Image path: " + parsedImage.image_path);
-            Debug.Log("Image url: " + parsedImage.image_url);
-
-            LoadImageFromDisk(parsedImage.image_path);
-        }
-        else
-        {
-            Debug.LogError("Replicate error: " + imageRequest.error);
-        }
     }
 
     IEnumerator LoadImage(string url)
@@ -297,7 +288,7 @@ public class InputScreenManager : MonoBehaviour
             currentStory = storyResponse.text;
             chapterText.text = currentStory;
             Debug.Log("Generating new scene image for the next chapter...");
-            GenerateImageForCurrentStory();
+            StartCoroutine(GenerateChapterImage(currentStory));
 
             Debug.Log("Next chapter: " + currentStory);
         }
@@ -344,7 +335,7 @@ public class InputScreenManager : MonoBehaviour
             currentStory = storyResponse.text;
             chapterText.text = currentStory;
             Debug.Log("Generating new scene image for final obstacle...");
-            GenerateImageForCurrentStory();
+            StartCoroutine(GenerateChapterImage(currentStory));
 
             finalObstacleShown = true;
 
@@ -416,7 +407,7 @@ public class InputScreenManager : MonoBehaviour
             currentStory = storyResponse.text;
             chapterText.text = currentStory;
             Debug.Log("Generating new scene image for ending...");
-            GenerateImageForCurrentStory();
+            StartCoroutine(GenerateChapterImage(currentStory));
 
             Debug.Log("Ending: " + currentStory);
         }
@@ -479,13 +470,13 @@ public class InputScreenManager : MonoBehaviour
         Debug.Log("Generating image for current chapter...");
 
         string imagePrompt =
-            $"Create a surreal cinematic digital art scene inspired by this chapter: {storyContext}. " +
-            $"The player's dream is: {currentDream}. " +
-            $"The obstacles are: {currentObstacles}. " +
-            "Focus on atmosphere, symbolism, environment, and mood. " +
-            "Avoid showing a specific person unless necessary. " +
-            "If a person appears, show only a distant ambiguous silhouette. " +
-            "Dark, beautiful, dreamlike visual style.";
+    $"Create a cinematic digital art scene inspired by this chapter: {storyContext}. " +
+    $"The player's dream is: {currentDream}. " +
+    $"The obstacles are: {currentObstacles}. " +
+    $"{GetImageStylePrompt()} " +
+    "Focus on atmosphere, symbolism, environment, and mood. " +
+    "Avoid showing a specific person unless necessary. " +
+    "If a person appears, show only a distant ambiguous silhouette.";
 
         string imageJson =
             JsonUtility.ToJson(new PromptRequest { prompt = imagePrompt });
@@ -525,6 +516,22 @@ public class InputScreenManager : MonoBehaviour
             Debug.LogError(
                 "Image generation error: " + imageRequest.error
             );
+        }
+    }
+
+    private string GetImageStylePrompt()
+    {
+        switch (selectedImageStyle)
+        {
+            case "Surreal Funny":
+                return "Use surreal humor, absurd visual details, ironic dream logic, and strange comedic imagery.";
+
+            case "Surreal Dark":
+                return "Use a dark surreal tone, eerie atmosphere, haunting symbolism, and ominous dream imagery.";
+
+            case "Super Surreal":
+            default:
+                return "Use highly surreal dream imagery, uncanny beauty, symbolic environments, and imaginative visual distortions.";
         }
     }
 
