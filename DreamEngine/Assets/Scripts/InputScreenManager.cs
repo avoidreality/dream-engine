@@ -63,25 +63,30 @@ public class InputScreenManager : MonoBehaviour
         Debug.Log("Starting coroutine...");
         StartCoroutine(GenerateChapter());
         Debug.Log("Coroutine started!");
-        turnCount++;
     }
 
-    public void OnSuperSurrealClicked()
+    public void OnImageStyleChanged(int selectedIndex)
     {
-        selectedImageStyle = "Super Surreal";
-        Debug.Log("Image style: " + selectedImageStyle);
-    }
+        switch (selectedIndex)
+        {
+            case 0:
+                selectedImageStyle = "Super Surreal";
+                break;
 
-    public void OnSurrealFunnyClicked()
-    {
-        selectedImageStyle = "Surreal Funny";
-        Debug.Log("Image style: " + selectedImageStyle);
-    }
+            case 1:
+                selectedImageStyle = "Surreal Funny";
+                break;
 
-    public void OnSurrealDarkClicked()
-    {
-        selectedImageStyle = "Surreal Dark";
-        Debug.Log("Image style: " + selectedImageStyle);
+            case 2:
+                selectedImageStyle = "Surreal Dark";
+                break;
+
+            default:
+                selectedImageStyle = "Super Surreal";
+                break;
+        }
+
+        Debug.Log("Image style selected: " + selectedImageStyle);
     }
 
     IEnumerator GenerateChapter()
@@ -118,7 +123,6 @@ public class InputScreenManager : MonoBehaviour
                 StoryResponse storyResponse = JsonUtility.FromJson<StoryResponse>(rawResponse);
                 chapterText.text = storyResponse.text;
                 Debug.Log("Story text: " + chapterText.text);
-                chapterText.text = storyResponse.text;
                 currentStory = storyResponse.text;
 
             }
