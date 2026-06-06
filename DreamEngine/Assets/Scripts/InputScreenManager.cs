@@ -17,6 +17,7 @@ public class InputScreenManager : MonoBehaviour
     public GameObject chapterPanel;
     public TextMeshProUGUI chapterText;
     public RawImage chapterImage;
+    public TextMeshProUGUI redrawButtonText;
 
     private string proxyUrl = "http://127.0.0.1:5001";
     private string currentDream;
@@ -34,6 +35,8 @@ public class InputScreenManager : MonoBehaviour
     private bool finalObstacleShown = false;
     private bool gameEnded = false;
     public GameObject choiceButtonRow;
+    private string selectedDreamStyle = "Super Surreal";
+    private string redrawDefaultText = "Re-draw Image";
 
     [Header("Game Over")]
     public GameObject gameOverPanel;
@@ -70,23 +73,52 @@ public class InputScreenManager : MonoBehaviour
         switch (selectedIndex)
         {
             case 0:
-                selectedImageStyle = "Super Surreal";
+                selectedDreamStyle = "Super Surreal";
                 break;
-
             case 1:
-                selectedImageStyle = "Surreal Funny";
+                selectedDreamStyle = "Surreal Funny";
                 break;
-
             case 2:
-                selectedImageStyle = "Surreal Dark";
+                selectedDreamStyle = "Surreal Dark";
                 break;
-
             default:
-                selectedImageStyle = "Super Surreal";
+                selectedDreamStyle = "Super Surreal";
                 break;
         }
 
-        Debug.Log("Image style selected: " + selectedImageStyle);
+        Debug.Log("Dream style selected: " + selectedDreamStyle);
+    }
+
+    private string GetStoryTonePrompt()
+    {
+        switch (selectedDreamStyle)
+        {
+            case "Surreal Funny":
+                return "Use a surreal, absurd, darkly funny tone with bizarre humor and strange dream logic.";
+
+            case "Surreal Dark":
+                return "Use a dark surreal tone with eerie atmosphere, emotional heaviness, psychological tension, and haunting imagery.";
+
+            case "Super Surreal":
+            default:
+                return "Use a highly surreal, symbolic, dreamlike tone with uncanny beauty, mystery, and imaginative strangeness.";
+        }
+    }
+
+    private string GetImageStylePrompt()
+    {
+        switch (selectedDreamStyle)
+        {
+            case "Surreal Funny":
+                return "Use surreal humor, absurd visual details, strange comedic imagery, and bizarre dream logic.";
+
+            case "Surreal Dark":
+                return "Use a dark surreal visual style with eerie atmosphere, haunting symbolism, ominous mood, and unsettling dream imagery.";
+
+            case "Super Surreal":
+            default:
+                return "Use a highly surreal visual style with symbolic imagery, dreamlike distortions, uncanny beauty, and imaginative strangeness.";
+        }
     }
 
     IEnumerator GenerateChapter()
@@ -101,7 +133,7 @@ public class InputScreenManager : MonoBehaviour
 
         // --- CALL CLAUDE ---
         string storyPrompt = $"A person dreams of {currentDream} but faces these obstacles: {currentObstacles}. " +
-                             "Write a short dramatic opening chapter event of 2-3 sentences, under 90 words total. " +
+                             "Write a short dramatic opening chapter event of 2-3 sentences, under 75 words total. " + $"{GetStoryTonePrompt()} " + 
                              "Make it emotional and specific. No headers or titles, just the story. Don't address the end-user by a specific name unless told to. Write in second person perspective.";
 
         string storyJson = JsonUtility.ToJson(new PromptRequest { prompt = storyPrompt });
@@ -265,12 +297,13 @@ public class InputScreenManager : MonoBehaviour
 
         string nextPrompt =
             $"The player's original dream is: {currentDream}. " +
+            $"{GetStoryTonePrompt()} " +
             $"The obstacles are: {currentObstacles}. " +
             $"The previous chapter was: {currentStory}. " +
             $"The player chose this action: {chosenAction}. " +
             $"Current stats: dream progress {dreamProgress}, stability {stability}, " +
             $"fear {fear}, integrity {integrity}, obsession {obsession}. " +
-            "Write the next dramatic chapter event in 2-3 sentences. " +
+            "Write the next dramatic chapter event in 2-3 sentences, under 75 words total. " +
             "Make the consequences of the choice clear. " +
             "Use second-person perspective. No headers or titles.";
 
@@ -309,6 +342,7 @@ public class InputScreenManager : MonoBehaviour
 
         string obstaclePrompt =
             $"The player's original dream is: {currentDream}. " +
+            $"{GetStoryTonePrompt()} " + 
             $"Their original obstacles are: {currentObstacles}. " +
             $"The previous chapter was: {currentStory}. " +
             $"Their most recent action was: {chosenAction}. " +
@@ -318,7 +352,7 @@ public class InputScreenManager : MonoBehaviour
             "The obstacle should force a painful tradeoff between pursuing the dream, " +
             "preserving the player's well-being, or escaping the nightmare. " +
             "Write 2-3 emotionally specific sentences in second-person perspective. " +
-            "Keep the response under 100 words total." + 
+            "Keep the response under 85 words total." + 
             "Do not resolve the obstacle. End with a tense decision point. No headers.";
 
         string storyJson =
@@ -384,12 +418,13 @@ public class InputScreenManager : MonoBehaviour
 
         string endingPrompt =
             $"The player's original dream is: {currentDream}. " +
+            $"{GetStoryTonePrompt()} " + 
             $"The obstacles are: {currentObstacles}. " +
             $"The previous chapter was: {currentStory}. " +
             $"Their final action was: {chosenAction}. " +
             $"Final stats: dream progress {dreamProgress}, stability {stability}, " +
             $"fear {fear}, integrity {integrity}, obsession {obsession}. " +
-            $"Write a short {endingType} ending in 3-4 sentences, under 120 words total. " +
+            $"Write a short {endingType} ending in 3-4 sentences, under 100 words total. " +
             "Make it emotionally specific. Explain what the player gained and what it cost them. " +
             "Use second-person perspective. No headers.";
 
@@ -514,33 +549,33 @@ public class InputScreenManager : MonoBehaviour
             Debug.Log("Image path: " + parsedImage.image_path);
 
             LoadImageFromDisk(parsedImage.image_path);
+            redrawButtonText.text = redrawDefaultText;
         }
         else
         {
             Debug.LogError(
                 "Image generation error: " + imageRequest.error
             );
-        }
-    }
-
-    private string GetImageStylePrompt()
-    {
-        switch (selectedImageStyle)
-        {
-            case "Surreal Funny":
-                return "Use surreal humor, absurd visual details, ironic dream logic, and strange comedic imagery.";
-
-            case "Surreal Dark":
-                return "Use a dark surreal tone, eerie atmosphere, haunting symbolism, and ominous dream imagery.";
-
-            case "Super Surreal":
-            default:
-                return "Use highly surreal dream imagery, uncanny beauty, symbolic environments, and imaginative visual distortions.";
+            redrawButtonText.text = redrawDefaultText;
         }
     }
 
     private void GenerateImageForCurrentStory()
     {
+        StartCoroutine(GenerateChapterImage(currentStory));
+    }
+
+    public void OnRedrawImageClicked()
+    {
+        if (string.IsNullOrEmpty(currentStory))
+        {
+            Debug.Log("No story available to redraw.");
+            return;
+        }
+
+        redrawButtonText.text = "Rendering another dream fragment...";
+
+        Debug.Log("Re-drawing current chapter image...");
         StartCoroutine(GenerateChapterImage(currentStory));
     }
 
