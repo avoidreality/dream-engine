@@ -18,6 +18,7 @@ public class InputScreenManager : MonoBehaviour
     public TextMeshProUGUI chapterText;
     public RawImage chapterImage;
     public TextMeshProUGUI redrawButtonText;
+    public CanvasGroup contentCanvasGroup;
 
     private string proxyUrl = "http://127.0.0.1:5001";
     private string currentDream;
@@ -508,14 +509,16 @@ public class InputScreenManager : MonoBehaviour
     {
         Debug.Log("Generating image for current chapter...");
 
+        contentCanvasGroup.alpha = 0f;
+
         string imagePrompt =
-    $"Create a cinematic digital art scene inspired by this chapter: {storyContext}. " +
-    $"The player's dream is: {currentDream}. " +
-    $"The obstacles are: {currentObstacles}. " +
-    $"{GetImageStylePrompt()} " +
-    "Focus on atmosphere, symbolism, environment, and mood. " +
-    "Avoid showing a specific person unless necessary. " +
-    "If a person appears, show only a distant ambiguous silhouette.";
+            $"Create a cinematic digital art scene inspired by this chapter: {storyContext}. " +
+            $"The player's dream is: {currentDream}. " +
+            $"The obstacles are: {currentObstacles}. " +
+            $"{GetImageStylePrompt()} " +
+            "Focus on atmosphere, symbolism, environment, and mood. " +
+            "Avoid showing a specific person unless necessary. " +
+            "If a person appears, show only a distant ambiguous silhouette.";
 
         string imageJson =
             JsonUtility.ToJson(new PromptRequest { prompt = imagePrompt });
@@ -532,10 +535,7 @@ public class InputScreenManager : MonoBehaviour
         imageRequest.downloadHandler =
             new DownloadHandlerBuffer();
 
-        imageRequest.SetRequestHeader(
-            "Content-Type",
-            "application/json"
-        );
+        imageRequest.SetRequestHeader("Content-Type", "application/json");
 
         yield return imageRequest.SendWebRequest();
 
@@ -546,16 +546,17 @@ public class InputScreenManager : MonoBehaviour
                     imageRequest.downloadHandler.text
                 );
 
-            Debug.Log("Image path: " + parsedImage.image_path);
-
             LoadImageFromDisk(parsedImage.image_path);
+
+            StartCoroutine(FadeInContent());
+
             redrawButtonText.text = redrawDefaultText;
         }
         else
         {
-            Debug.LogError(
-                "Image generation error: " + imageRequest.error
-            );
+            Debug.LogError("Image generation error: " + imageRequest.error);
+
+            contentCanvasGroup.alpha = 1f;
             redrawButtonText.text = redrawDefaultText;
         }
     }
@@ -563,6 +564,23 @@ public class InputScreenManager : MonoBehaviour
     private void GenerateImageForCurrentStory()
     {
         StartCoroutine(GenerateChapterImage(currentStory));
+    }
+
+    IEnumerator FadeInContent()
+    {
+        contentCanvasGroup.alpha = 0f;
+
+        float duration = 0.6f;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            contentCanvasGroup.alpha = Mathf.Clamp01(elapsed / duration);
+            yield return null;
+        }
+
+        contentCanvasGroup.alpha = 1f;
     }
 
     public void OnRedrawImageClicked()
