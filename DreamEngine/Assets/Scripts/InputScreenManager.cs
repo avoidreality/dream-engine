@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.UI;
 using TMPro;
+using System.Collections.Generic;
 
 public class InputScreenManager : MonoBehaviour
 {
@@ -11,7 +12,6 @@ public class InputScreenManager : MonoBehaviour
     public TMP_InputField obstaclesInputField;
     public TextMeshProUGUI titleText;
     public GameObject inputPanel;
-    private string selectedImageStyle = "Super Surreal";
 
     [Header("Chapter Screen")]
     public GameObject chapterPanel;
@@ -39,6 +39,15 @@ public class InputScreenManager : MonoBehaviour
     private string selectedDreamStyle = "Super Surreal";
     private string redrawDefaultText = "Re-draw Image";
 
+    private List<ChapterRecord> chapterHistory = new List<ChapterRecord>();
+    private int currentChapterIndex = -1;
+
+    private string bookCreatedAt;
+    private string bookDreamStyle;
+
+    private Coroutine loadingPulseCoroutine;
+    public TextMeshProUGUI loadingText;
+
     [Header("Game Over")]
     public GameObject gameOverPanel;
     public TextMeshProUGUI gameOverText;
@@ -53,7 +62,7 @@ public class InputScreenManager : MonoBehaviour
     public void OnStartButtonClicked()
     {
         Debug.Log("Button clicked!");
-        Debug.Log("Image Style = " + selectedImageStyle);
+        Debug.Log("Image and Text Style = " + selectedDreamStyle);
         currentDream = dreamInputField.text;
         currentObstacles = obstaclesInputField.text;
         Debug.Log("Dream: " + currentDream + " Obstacles: " + currentObstacles);
@@ -63,6 +72,9 @@ public class InputScreenManager : MonoBehaviour
             Debug.Log("Please fill in both fields.");
             return;
         }
+
+        bookCreatedAt = System.DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+        bookDreamStyle = selectedDreamStyle;
 
         Debug.Log("Starting coroutine...");
         StartCoroutine(GenerateChapter());
@@ -157,6 +169,7 @@ public class InputScreenManager : MonoBehaviour
                 chapterText.text = storyResponse.text;
                 Debug.Log("Story text: " + chapterText.text);
                 currentStory = storyResponse.text;
+                RecordNewChapter("Opening", currentStory);
 
             }
             catch (System.Exception e)
@@ -325,6 +338,7 @@ public class InputScreenManager : MonoBehaviour
 
             currentStory = storyResponse.text;
             chapterText.text = currentStory;
+            RecordNewChapter("Chapter", currentStory, chosenAction);
             Debug.Log("Generating new scene image for the next chapter...");
             StartCoroutine(GenerateChapterImage(currentStory));
 
@@ -373,6 +387,7 @@ public class InputScreenManager : MonoBehaviour
 
             currentStory = storyResponse.text;
             chapterText.text = currentStory;
+            RecordNewChapter("Final Obstacle", currentStory, chosenAction);
             Debug.Log("Generating new scene image for final obstacle...");
             StartCoroutine(GenerateChapterImage(currentStory));
 
@@ -446,6 +461,7 @@ public class InputScreenManager : MonoBehaviour
 
             currentStory = storyResponse.text;
             chapterText.text = currentStory;
+            RecordNewChapter("Ending", currentStory, chosenAction);
             Debug.Log("Generating new scene image for ending...");
             StartCoroutine(GenerateChapterImage(currentStory));
 
@@ -491,7 +507,30 @@ public class InputScreenManager : MonoBehaviour
         chapterPanel.SetActive(false);
         inputPanel.SetActive(true);
 
+        chapterHistory.Clear();
+        currentChapterIndex = -1;
+        bookCreatedAt = "";
+        bookDreamStyle = "";
+
         Debug.Log("Game reset.");
+    }
+
+    private void RecordNewChapter(string chapterType,string text, string chosenAction = "")
+    {
+        ChapterRecord record = new ChapterRecord
+        {
+            chapterType = chapterType,
+            chapterText = text,
+            imagePath = "",
+            chosenAction = chosenAction
+        };
+
+        chapterHistory.Add(record);
+        currentChapterIndex = chapterHistory.Count - 1;
+
+        Debug.Log(
+            $"Recorded chapter {chapterHistory.Count}: {chapterType}"
+        );
     }
 
 
@@ -508,8 +547,9 @@ public class InputScreenManager : MonoBehaviour
     IEnumerator GenerateChapterImage(string storyContext)
     {
         Debug.Log("Generating image for current chapter...");
-
+        ShowLoadingText();
         contentCanvasGroup.alpha = 0f;
+
 
         string imagePrompt =
             $"Create a cinematic digital art scene inspired by this chapter: {storyContext}. " +
@@ -547,17 +587,32 @@ public class InputScreenManager : MonoBehaviour
                 );
 
             LoadImageFromDisk(parsedImage.image_path);
+            if (currentChapterIndex >= 0)
+            {
+                chapterHistory[currentChapterIndex].imagePath =
+                    parsedImage.image_path;
 
+                Debug.Log(
+                    "Saved latest image for chapter: " +
+                    chapterHistory[currentChapterIndex].chapterType
+                );
+            }
+            if (gameEnded)
+            {
+                LogDreamBookHistory();
+            }
+            HideLoadingText();
             StartCoroutine(FadeInContent());
-
             redrawButtonText.text = redrawDefaultText;
+
         }
         else
         {
             Debug.LogError("Image generation error: " + imageRequest.error);
-
+            HideLoadingText();
             contentCanvasGroup.alpha = 1f;
             redrawButtonText.text = redrawDefaultText;
+            
         }
     }
 
@@ -595,6 +650,79 @@ public class InputScreenManager : MonoBehaviour
 
         Debug.Log("Re-drawing current chapter image...");
         StartCoroutine(GenerateChapterImage(currentStory));
+    }
+
+    private void ShowLoadingText()
+    {
+        loadingText.text = "The next chapter is forming in the astral realm...";
+        loadingText.gameObject.SetActive(true);
+        loadingText.transform.SetAsLastSibling();
+
+        if (loadingPulseCoroutine != null)
+        {
+            StopCoroutine(loadingPulseCoroutine);
+        }
+
+        loadingPulseCoroutine = StartCoroutine(PulseLoadingText());
+    }
+
+    IEnumerator PulseLoadingText()
+    {
+        while (true)
+        {
+            float alpha = 0.5f + 0.5f * Mathf.Sin(Time.time * 4f);
+
+            Color c = loadingText.color;
+            c.a = alpha;
+            loadingText.color = c;
+
+            yield return null;
+        }
+    }
+
+    private void HideLoadingText()
+    {
+        if (loadingPulseCoroutine != null)
+        {
+            StopCoroutine(loadingPulseCoroutine);
+            loadingPulseCoroutine = null;
+        }
+
+        Color c = loadingText.color;
+        c.a = 1f;
+        loadingText.color = c;
+
+        loadingText.gameObject.SetActive(false);
+    }
+
+    private void LogDreamBookHistory()
+    {
+        Debug.Log(
+            $"Dream Book contains {chapterHistory.Count} chapters"
+        );
+
+        for (int i = 0; i < chapterHistory.Count; i++)
+        {
+            ChapterRecord chapter = chapterHistory[i];
+
+            string imageStatus =
+                string.IsNullOrEmpty(chapter.imagePath)
+                    ? "missing image"
+                    : "image saved";
+
+            Debug.Log(
+                $"{i + 1}. {chapter.chapterType} — {imageStatus}"
+            );
+        }
+    }
+
+    [System.Serializable]
+    public class ChapterRecord
+    {
+        public string chapterType;
+        public string chapterText;
+        public string imagePath;
+        public string chosenAction;
     }
 
     [System.Serializable]
