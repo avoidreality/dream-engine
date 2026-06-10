@@ -32,3 +32,6 @@ DreamEngine.sln
 *.user
 *.userprefs
 
+# dream book
+exports/
+

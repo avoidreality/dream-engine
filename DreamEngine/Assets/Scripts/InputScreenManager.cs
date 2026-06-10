@@ -45,6 +45,8 @@ public class InputScreenManager : MonoBehaviour
     private string bookCreatedAt;
     private string bookDreamStyle;
 
+    private bool isGenerating = false;
+
     private Coroutine loadingPulseCoroutine;
     public TextMeshProUGUI loadingText;
 
@@ -77,6 +79,7 @@ public class InputScreenManager : MonoBehaviour
         bookDreamStyle = selectedDreamStyle;
 
         Debug.Log("Starting coroutine...");
+        isGenerating = true;
         StartCoroutine(GenerateChapter());
         Debug.Log("Coroutine started!");
     }
@@ -194,7 +197,7 @@ public class InputScreenManager : MonoBehaviour
      "Prefer no person in the image. If a human figure must appear, show only an ambiguous silhouette or distant figure. " +
      "Avoid character portrait focus. Emotional, dark, beautiful, dreamlike atmosphere.";
         */
-        StartCoroutine(GenerateChapterImage(currentStory));
+        StartCoroutine(GenerateChapterImage(currentStory, currentChapterIndex));
 
     }
 
@@ -237,15 +240,27 @@ public class InputScreenManager : MonoBehaviour
 
     public void OnChaseDreamClicked()
     {
-        dreamProgress += 2;
-        obsession += 1;
-        stability -= 1;
+        if (isGenerating) {
 
-        ProcessChoice("Chase Dream");
+            Debug.Log("Image still generating...");
+            return;
+        }
+            dreamProgress += 2;
+            obsession += 1;
+            stability -= 1;
+
+            ProcessChoice("Chase Dream");
+        
     }
 
     public void OnPreserveSelfClicked()
     {
+        if (isGenerating)
+        {
+
+            Debug.Log("Image still generating...");
+            return;
+        }
         stability += 2;
         fear -= 1;
 
@@ -254,6 +269,12 @@ public class InputScreenManager : MonoBehaviour
 
     public void OnEscapeNightmareClicked()
     {
+        if (isGenerating)
+        {
+
+            Debug.Log("Image still generating...");
+            return;
+        }
         fear -= 2;
         dreamProgress -= 1;
         integrity -= 1;
@@ -274,10 +295,13 @@ public class InputScreenManager : MonoBehaviour
 
     private void ProcessChoice(string chosenAction)
     {
-        if (gameEnded)
+        if (gameEnded || isGenerating)
         {
+            Debug.Log("Please wait - the next chapter is still forming...");
             return;
         }
+
+        isGenerating = true;
 
         ClampStats();
         LogCurrentStats();
@@ -340,7 +364,7 @@ public class InputScreenManager : MonoBehaviour
             chapterText.text = currentStory;
             RecordNewChapter("Chapter", currentStory, chosenAction);
             Debug.Log("Generating new scene image for the next chapter...");
-            StartCoroutine(GenerateChapterImage(currentStory));
+            StartCoroutine(GenerateChapterImage(currentStory, currentChapterIndex));
 
             Debug.Log("Next chapter: " + currentStory);
         }
@@ -389,7 +413,7 @@ public class InputScreenManager : MonoBehaviour
             chapterText.text = currentStory;
             RecordNewChapter("Final Obstacle", currentStory, chosenAction);
             Debug.Log("Generating new scene image for final obstacle...");
-            StartCoroutine(GenerateChapterImage(currentStory));
+            StartCoroutine(GenerateChapterImage(currentStory, currentChapterIndex));
 
             finalObstacleShown = true;
 
@@ -463,7 +487,7 @@ public class InputScreenManager : MonoBehaviour
             chapterText.text = currentStory;
             RecordNewChapter("Ending", currentStory, chosenAction);
             Debug.Log("Generating new scene image for ending...");
-            StartCoroutine(GenerateChapterImage(currentStory));
+            StartCoroutine(GenerateChapterImage(currentStory, currentChapterIndex));
 
             Debug.Log("Ending: " + currentStory);
         }
@@ -544,7 +568,7 @@ public class InputScreenManager : MonoBehaviour
         obsession = Mathf.Max(0, obsession);
     }
 
-    IEnumerator GenerateChapterImage(string storyContext)
+    IEnumerator GenerateChapterImage(string storyContext, int chapterIndex)
     {
         Debug.Log("Generating image for current chapter...");
         ShowLoadingText();
@@ -587,23 +611,25 @@ public class InputScreenManager : MonoBehaviour
                 );
 
             LoadImageFromDisk(parsedImage.image_path);
-            if (currentChapterIndex >= 0)
+            if (chapterIndex >= 0 && chapterIndex < chapterHistory.Count)
             {
-                chapterHistory[currentChapterIndex].imagePath =
+                chapterHistory[chapterIndex].imagePath =
                     parsedImage.image_path;
 
                 Debug.Log(
                     "Saved latest image for chapter: " +
-                    chapterHistory[currentChapterIndex].chapterType
+                    chapterHistory[chapterIndex].chapterType
                 );
             }
             if (gameEnded)
             {
                 LogDreamBookHistory();
+                StartCoroutine(ExportDreamBook());
             }
             HideLoadingText();
             StartCoroutine(FadeInContent());
             redrawButtonText.text = redrawDefaultText;
+            isGenerating = false;
 
         }
         else
@@ -612,13 +638,14 @@ public class InputScreenManager : MonoBehaviour
             HideLoadingText();
             contentCanvasGroup.alpha = 1f;
             redrawButtonText.text = redrawDefaultText;
+            isGenerating = false;
             
         }
     }
 
     private void GenerateImageForCurrentStory()
     {
-        StartCoroutine(GenerateChapterImage(currentStory));
+        StartCoroutine(GenerateChapterImage(currentStory, currentChapterIndex));
     }
 
     IEnumerator FadeInContent()
@@ -649,7 +676,7 @@ public class InputScreenManager : MonoBehaviour
         redrawButtonText.text = "Rendering another dream fragment...";
 
         Debug.Log("Re-drawing current chapter image...");
-        StartCoroutine(GenerateChapterImage(currentStory));
+        StartCoroutine(GenerateChapterImage(currentStory, currentChapterIndex));
     }
 
     private void ShowLoadingText()
@@ -714,6 +741,106 @@ public class InputScreenManager : MonoBehaviour
                 $"{i + 1}. {chapter.chapterType} — {imageStatus}"
             );
         }
+    }
+
+    IEnumerator ExportDreamBook()
+    {
+        Debug.Log("ExportDreamBook coroutine entered!");
+
+        if (chapterHistory == null || chapterHistory.Count == 0)
+        {
+            Debug.LogError("Cannot export dream book: no chapters saved.");
+            yield break;
+        }
+
+        DreamBookExportRequest exportRequest =
+            new DreamBookExportRequest
+            {
+                dream = currentDream,
+                obstacles = currentObstacles,
+                style = bookDreamStyle,
+                created_at = bookCreatedAt,
+                chapters = chapterHistory
+            };
+
+        Debug.Log("Sending dream book export request...");
+
+        string exportJson =
+            JsonUtility.ToJson(exportRequest);
+
+        byte[] exportBytes =
+            System.Text.Encoding.UTF8.GetBytes(exportJson);
+
+        UnityWebRequest exportWebRequest =
+            new UnityWebRequest(
+                proxyUrl + "/export-pdf",
+                "POST"
+            );
+
+        exportWebRequest.uploadHandler =
+            new UploadHandlerRaw(exportBytes);
+
+        exportWebRequest.downloadHandler =
+            new DownloadHandlerBuffer();
+
+        exportWebRequest.SetRequestHeader(
+            "Content-Type",
+            "application/json"
+        );
+
+        yield return exportWebRequest.SendWebRequest();
+
+        if (
+            exportWebRequest.result ==
+            UnityWebRequest.Result.Success
+        )
+        {
+            DreamBookExportResponse exportResponse =
+                JsonUtility.FromJson<DreamBookExportResponse>(
+                    exportWebRequest.downloadHandler.text
+                );
+
+            Debug.Log(
+                "Dream book exported: " +
+                exportResponse.pdf_path
+            );
+
+            Debug.Log(
+                "Dream book URL: " +
+                exportResponse.pdf_url
+            );
+
+            Application.OpenURL(exportResponse.pdf_url);
+        }
+        else
+        {
+            Debug.LogError(
+                "Dream book export failed: " +
+                exportWebRequest.error
+            );
+
+            Debug.LogError(
+                "Export response: " +
+                exportWebRequest.downloadHandler.text
+            );
+        }
+    }
+
+    [System.Serializable]
+    public class DreamBookExportRequest
+    {
+        public string dream;
+        public string obstacles;
+        public string style;
+        public string created_at;
+        public List<ChapterRecord> chapters;
+    }
+
+    [System.Serializable]
+    public class DreamBookExportResponse
+    {
+        public string pdf_path;
+        public string pdf_url;
     }
 
     [System.Serializable]
