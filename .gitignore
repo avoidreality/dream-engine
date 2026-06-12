@@ -35,3 +35,10 @@ DreamEngine.sln
 # dream book
 exports/
 
+# Local Unity builds
+*.app/
+[Bb]uild/
+[Bb]uilds/
+DreamEngine/ProjectSettings/BurstAotSettings_StandaloneOSX.json
+DreamEngine/ProjectSettings/CommonBurstAotSettings.json
+

@@ -624,7 +624,6 @@ public class InputScreenManager : MonoBehaviour
             if (gameEnded)
             {
                 LogDreamBookHistory();
-                StartCoroutine(ExportDreamBook());
             }
             HideLoadingText();
             StartCoroutine(FadeInContent());
@@ -677,6 +676,18 @@ public class InputScreenManager : MonoBehaviour
 
         Debug.Log("Re-drawing current chapter image...");
         StartCoroutine(GenerateChapterImage(currentStory, currentChapterIndex));
+    }
+
+    public void OnDownloadDreamBookClicked()
+    {
+        if (!gameEnded)
+        {
+            Debug.Log("Dream book is only available after the ending.");
+            return;
+        }
+
+        Debug.Log("Preparing to record your dream into a dream book...");
+        StartCoroutine(ExportDreamBook());
     }
 
     private void ShowLoadingText()
