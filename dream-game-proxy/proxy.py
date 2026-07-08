@@ -24,8 +24,15 @@ COVER_IMAGE_PATH = os.path.join(
     "dream_engine_cover.png"
 )
 
-ANTHROPIC_API_KEY = ANTHROPIC_API_KEY
-REPLICATE_API_TOKEN = REPLICATE_API_TOKEN
+try:
+    from secrets import ANTHROPIC_API_KEY as LOCAL_ANTHROPIC_API_KEY
+    from secrets import REPLICATE_API_TOKEN as LOCAL_REPLICATE_API_TOKEN
+except ImportError:
+    LOCAL_ANTHROPIC_API_KEY = None
+    LOCAL_REPLICATE_API_TOKEN = None
+
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY") or LOCAL_ANTHROPIC_API_KEY
+REPLICATE_API_TOKEN = os.environ.get("REPLICATE_API_TOKEN") or LOCAL_REPLICATE_API_TOKEN
 
 class ProxyHandler(BaseHTTPRequestHandler):
 
@@ -434,6 +441,6 @@ class ProxyHandler(BaseHTTPRequestHandler):
         print(f"{self.path} - {args[0]}")
 
 if __name__ == '__main__':
-    server = ThreadingHTTPServer(('127.0.0.1', 5001), ProxyHandler)
-    print('Dream Engine proxy running on http://127.0.0.1:5001')
+    port = int(os.environ.get("PORT", 5001))
+    server = ThreadingHTTPServer(("0.0.0.0", port), ProxyHandler)
     server.serve_forever()
