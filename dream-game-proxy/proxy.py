@@ -126,7 +126,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         for index, chapter in enumerate(chapters, start=1):
             chapter_type = chapter.get('chapterType', 'Chapter')
             chapter_text = chapter.get('chapterText', '')
-            image_path = chapter.get('imagePath', '')
+            image_ref = chapter.get('imageUrl', '') or chapter.get("imagePath", '')
             chosen_action = chapter.get('chosenAction', '')
 
             # Image page
@@ -137,10 +137,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 f"{index}. {chapter_type}"
             )
 
-            if image_path and os.path.isfile(image_path):
+            if image_ref:
                 self.draw_fitted_image(
                     pdf,
-                    image_path,
+                    image_ref,
                     45,
                     75,
                     page_width - 90,
@@ -203,13 +203,17 @@ class ProxyHandler(BaseHTTPRequestHandler):
     def draw_fitted_image(
             self,
             pdf,
-            image_path,
+            image_ref,
             x,
             y,
             max_width,
             max_height
     ):
-        image = ImageReader(image_path)
+        if image_ref.startswith("http"):
+            image_data = urllib.request.urlopen(image_ref).read()
+            image = ImageReader(BytesIO(image_data))
+        else:
+            image = ImageReader(image_ref)
 
         image_width, image_height = image.getSize()
 

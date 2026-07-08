@@ -216,6 +216,22 @@ public class InputScreenManager : MonoBehaviour
         }
     }
 
+    IEnumerator LoadImageFromUrl(string imageUrl)
+    {
+        UnityWebRequest request = UnityWebRequestTexture.GetTexture(imageUrl);
+        yield return request.SendWebRequest();
+
+        if (request.result == UnityWebRequest.Result.Success)
+        {
+            Texture2D tex = DownloadHandlerTexture.GetContent(request);
+            chapterImage.texture = tex;
+        }
+        else
+        {
+            Debug.LogError("Failed to load image from URL: " + request.error);
+        }
+    }
+
     void LoadImageFromDisk(string path)
     {
         Debug.Log("Loading image from disk: " + path);
@@ -546,6 +562,7 @@ public class InputScreenManager : MonoBehaviour
             chapterType = chapterType,
             chapterText = text,
             imagePath = "",
+            imageUrl = "",
             chosenAction = chosenAction
         };
 
@@ -580,8 +597,9 @@ public class InputScreenManager : MonoBehaviour
             $"The player's dream is: {currentDream}. " +
             $"The obstacles are: {currentObstacles}. " +
             $"{GetImageStylePrompt()} " +
-            "Focus on atmosphere, symbolism, environment, and mood. " +
+            "Focus on atmosphere, symbolism, astrology, the occult, science, art, environment, and mood. " +
             "Avoid showing a specific person unless necessary. " +
+            "Realistic anatomy, normal number of limbs, no extra legs, no distorted hands." + 
             "If a person appears, show only a distant ambiguous silhouette.";
 
         string imageJson =
@@ -610,11 +628,13 @@ public class InputScreenManager : MonoBehaviour
                     imageRequest.downloadHandler.text
                 );
 
-            LoadImageFromDisk(parsedImage.image_path);
+            StartCoroutine(LoadImageFromUrl(parsedImage.image_url));
             if (chapterIndex >= 0 && chapterIndex < chapterHistory.Count)
             {
                 chapterHistory[chapterIndex].imagePath =
-                    parsedImage.image_path;
+                    parsedImage.image_url;
+
+                chapterHistory[chapterIndex].imageUrl = parsedImage.image_url;
 
                 Debug.Log(
                     "Saved latest image for chapter: " +
@@ -860,6 +880,7 @@ public class InputScreenManager : MonoBehaviour
         public string chapterType;
         public string chapterText;
         public string imagePath;
+        public string imageUrl;
         public string chosenAction;
     }
 
