@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: dream-game-proxy
+    runtime: python
+    plan: free
+    rootDir: dream-game-proxy
+    buildCommand: pip install -r requirements.txt
+    startCommand: python proxy.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: REPLICATE_API_TOKEN
+        sync: false
+      - key: PUBLIC_BASE_URL
+        value: https://dream-game-proxy.onrender.com

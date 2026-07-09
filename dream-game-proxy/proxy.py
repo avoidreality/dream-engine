@@ -6,23 +6,24 @@ import os
 import uuid
 from PIL import Image
 from io import BytesIO
-from secrets import ANTHROPIC_API_KEY, REPLICATE_API_TOKEN
 import textwrap
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Paragraph
-from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.styles import ParagraphStyle
 from xml.sax.saxutils import escape
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 EXPORTS_DIR = os.path.join(BASE_DIR, "exports")
+GENERATED_DIR = os.path.join(BASE_DIR, "generated")
 COVER_IMAGE_PATH = os.path.join(
     BASE_DIR,
     "assets",
     "dream_engine_cover.png"
 )
+
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://127.0.0.1:5001")
 
 try:
     from secrets import ANTHROPIC_API_KEY as LOCAL_ANTHROPIC_API_KEY
@@ -33,6 +34,7 @@ except ImportError:
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY") or LOCAL_ANTHROPIC_API_KEY
 REPLICATE_API_TOKEN = os.environ.get("REPLICATE_API_TOKEN") or LOCAL_REPLICATE_API_TOKEN
+
 
 class ProxyHandler(BaseHTTPRequestHandler):
 
@@ -196,9 +198,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
         pdf.save()
 
-        pdf_url = (
-            f"http://127.0.0.1:5001/exports/{pdf_filename}"
-        )
+        pdf_url = f"{PUBLIC_BASE_URL}/exports/{pdf_filename}"
 
         print("Dream book exported:", pdf_path)
 
@@ -305,8 +305,13 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.wfile.write(response_bytes)
 
         elif self.path.startswith('/generated/'):
-            filename = self.path.replace('/generated/', '')
-            filepath = os.path.join('generated', filename)
+            filename = os.path.basename(self.path.replace('/generated/', ''))
+            filepath = os.path.join(GENERATED_DIR, filename)
+
+            if not os.path.isfile(filepath):
+                self.send_response(404)
+                self.end_headers()
+                return
 
             with open(filepath, 'rb') as f:
                 image_bytes = f.read()
@@ -321,7 +326,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.wfile.write(image_bytes)
 
         elif self.path.startswith('/exports/'):
-            filename = self.path.replace('/exports/', '')
+            filename = os.path.basename(self.path.replace('/exports/', ''))
             filepath = os.path.join(EXPORTS_DIR, filename)
 
             if not os.path.isfile(filepath):
@@ -353,6 +358,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
 
     def call_claude(self, prompt):
+
+        if not ANTHROPIC_API_KEY:
+            return {'text': 'Error: ANTHROPIC_API_KEY is not configured'}
+
         try:
             payload = json.dumps({
                 'model': 'claude-sonnet-4-6',
@@ -380,62 +389,71 @@ class ProxyHandler(BaseHTTPRequestHandler):
             return {'text': f'Error: {str(e)}'}
 
     def call_replicate(self, prompt):
-        payload = json.dumps({
-            'input': {'prompt': prompt}
-        }).encode('utf-8')
 
-        req = urllib.request.Request(
-            'https://api.replicate.com/v1/models/stability-ai/stable-diffusion-3/predictions',
-            data=payload,
-            headers={
-                'Authorization': f'Token {REPLICATE_API_TOKEN}',
-                'Content-Type': 'application/json'
-            }
-        )
+        if not REPLICATE_API_TOKEN:
+            return {'error': 'REPLICATE_API_TOKEN is not configured'}
 
-        with urllib.request.urlopen(req) as response:
-            prediction = json.loads(response.read())
+        try:
+            payload = json.dumps({
+                'input': {'prompt': prompt}
+            }).encode('utf-8')
 
-        prediction_id = prediction.get('id')
-        print(f"Prediction ID: {prediction_id}")
-
-        for _ in range(60):
-            time.sleep(3)
-            poll_req = urllib.request.Request(
-                f'https://api.replicate.com/v1/predictions/{prediction_id}',
-                headers={'Authorization': f'Token {REPLICATE_API_TOKEN}'}
-            )
-            with urllib.request.urlopen(poll_req) as poll_response:
-                result = json.loads(poll_response.read())
-            print(f"Poll status: {result.get('status')}")
-            if result.get('status') == 'succeeded':
-                webp_url = result['output'][0]
-
-                with urllib.request.urlopen(webp_url) as img_response:
-                    webp_bytes = img_response.read()
-
-                os.makedirs('generated', exist_ok=True)
-
-                png_filename = f"{uuid.uuid4()}.png"
-                png_path = os.path.join('generated', png_filename)
-
-                image = Image.open(BytesIO(webp_bytes)).convert("RGB")
-                image.save(png_path, "PNG")
-
-                local_url = f"http://127.0.0.1:5001/generated/{png_filename}"
-
-                print({
-                    'image_path': os.path.abspath(png_path),
-                    'image_url': local_url
-                })
-                return {
-                    'image_path': os.path.abspath(png_path),
-                    'image_url': local_url
+            req = urllib.request.Request(
+                'https://api.replicate.com/v1/models/stability-ai/stable-diffusion-3/predictions',
+                data=payload,
+                headers={
+                    'Authorization': f'Token {REPLICATE_API_TOKEN}',
+                    'Content-Type': 'application/json'
                 }
-            elif result.get('status') == 'failed':
-                return {'error': 'Image generation failed'}
+            )
 
-        return {'error': 'Timed out'}
+            with urllib.request.urlopen(req) as response:
+                prediction = json.loads(response.read())
+
+            prediction_id = prediction.get('id')
+            print(f"Prediction ID: {prediction_id}")
+
+            for _ in range(60):
+                time.sleep(3)
+                poll_req = urllib.request.Request(
+                    f'https://api.replicate.com/v1/predictions/{prediction_id}',
+                    headers={'Authorization': f'Token {REPLICATE_API_TOKEN}'}
+                )
+                with urllib.request.urlopen(poll_req) as poll_response:
+                    result = json.loads(poll_response.read())
+                print(f"Poll status: {result.get('status')}")
+                if result.get('status') == 'succeeded':
+                    webp_url = result['output'][0]
+
+                    with urllib.request.urlopen(webp_url) as img_response:
+                        webp_bytes = img_response.read()
+
+                    os.makedirs(GENERATED_DIR, exist_ok=True)
+
+                    png_filename = f"{uuid.uuid4()}.png"
+                    png_path = os.path.join(GENERATED_DIR, png_filename)
+
+                    image = Image.open(BytesIO(webp_bytes)).convert("RGB")
+                    image.save(png_path, "PNG")
+
+                    local_url = f"{PUBLIC_BASE_URL}/generated/{png_filename}"
+
+                    print({
+                        'image_path': os.path.abspath(png_path),
+                        'image_url': local_url
+                    })
+                    return {
+                        'image_path': os.path.abspath(png_path),
+                        'image_url': local_url
+                    }
+                elif result.get('status') == 'failed':
+                    return {'error': 'Image generation failed'}
+
+            return {'error': 'Timed out'}
+
+        except Exception as e:
+            print(f"Replicate error: {e}")
+            return {'error': f'Replicate error: {str(e)}'}
 
     def log_message(self, format, *args):
         print(f"{self.path} - {args[0]}")
@@ -443,4 +461,5 @@ class ProxyHandler(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5001))
     server = ThreadingHTTPServer(("0.0.0.0", port), ProxyHandler)
+    print(f"Dream engine proxy running on port {port}")
     server.serve_forever()
