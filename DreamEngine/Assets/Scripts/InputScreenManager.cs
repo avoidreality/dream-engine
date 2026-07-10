@@ -20,7 +20,7 @@ public class InputScreenManager : MonoBehaviour
     public TextMeshProUGUI redrawButtonText;
     public CanvasGroup contentCanvasGroup;
 
-    private string proxyUrl = "http://127.0.0.1:5001";
+    private string proxyUrl = "https://dream-game-proxy.onrender.com";
     private string currentDream;
     private string currentObstacles;
     private string currentStory = "";
