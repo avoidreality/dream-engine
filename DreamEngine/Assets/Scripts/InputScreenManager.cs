@@ -54,6 +54,14 @@ public class InputScreenManager : MonoBehaviour
     public GameObject gameOverPanel;
     public TextMeshProUGUI gameOverText;
 
+    // Download button and status components
+    [SerializeField] private GameObject downloadStatusPanel;
+    [SerializeField] private TMP_Text downloadStatusText;
+    [SerializeField] private Button downloadDreamBookButton;
+
+    private bool isExportingDreamBook;
+    // Download dream book end
+
     void Start()
     {
         titleText.text = "DREAM ENGINE";
@@ -503,7 +511,7 @@ public class InputScreenManager : MonoBehaviour
             chapterText.text = currentStory;
             RecordNewChapter("Ending", currentStory, chosenAction);
             Debug.Log("Generating new scene image for ending...");
-            StartCoroutine(GenerateChapterImage(currentStory, currentChapterIndex));
+            yield return StartCoroutine(GenerateChapterImage(currentStory, currentChapterIndex));
 
             Debug.Log("Ending: " + currentStory);
         }
@@ -706,6 +714,11 @@ public class InputScreenManager : MonoBehaviour
             return;
         }
 
+        if (isExportingDreamBook)
+        {
+            return;
+        }
+
         Debug.Log("Preparing to record your dream into a dream book...");
         StartCoroutine(ExportDreamBook());
     }
@@ -774,13 +787,31 @@ public class InputScreenManager : MonoBehaviour
         }
     }
 
-    IEnumerator ExportDreamBook()
+    private IEnumerator ExportDreamBook()
     {
         Debug.Log("ExportDreamBook coroutine entered!");
+
+        isExportingDreamBook = true;
+        downloadDreamBookButton.interactable = false;
+
+        downloadStatusText.text =
+            "Preparing your Dream Book PDF...\n\n" +
+            "This may take up to a minute.\n" +
+            "Please keep this page open.";
+
+        downloadStatusPanel.SetActive(true);
 
         if (chapterHistory == null || chapterHistory.Count == 0)
         {
             Debug.LogError("Cannot export dream book: no chapters saved.");
+
+            downloadStatusText.text =
+                "The Dream Book could not be created.\n" +
+                "No chapters were found.";
+
+            yield return new WaitForSecondsRealtime(3f);
+
+            ResetDreamBookDownloadUI();
             yield break;
         }
 
@@ -796,17 +827,13 @@ public class InputScreenManager : MonoBehaviour
 
         Debug.Log("Sending dream book export request...");
 
-        string exportJson =
-            JsonUtility.ToJson(exportRequest);
+        string exportJson = JsonUtility.ToJson(exportRequest);
 
         byte[] exportBytes =
             System.Text.Encoding.UTF8.GetBytes(exportJson);
 
-        UnityWebRequest exportWebRequest =
-            new UnityWebRequest(
-                proxyUrl + "/export-pdf",
-                "POST"
-            );
+        using UnityWebRequest exportWebRequest =
+            new UnityWebRequest(proxyUrl + "/export-pdf", "POST");
 
         exportWebRequest.uploadHandler =
             new UploadHandlerRaw(exportBytes);
@@ -821,10 +848,7 @@ public class InputScreenManager : MonoBehaviour
 
         yield return exportWebRequest.SendWebRequest();
 
-        if (
-            exportWebRequest.result ==
-            UnityWebRequest.Result.Success
-        )
+        if (exportWebRequest.result == UnityWebRequest.Result.Success)
         {
             DreamBookExportResponse exportResponse =
                 JsonUtility.FromJson<DreamBookExportResponse>(
@@ -841,7 +865,16 @@ public class InputScreenManager : MonoBehaviour
                 exportResponse.pdf_url
             );
 
+            downloadStatusText.text =
+                "Your Dream Book is ready.\n" +
+                "Opening the PDF now...";
+
+            // Give Unity one frame to display the success message.
+            yield return null;
+
             Application.OpenURL(exportResponse.pdf_url);
+
+            yield return new WaitForSecondsRealtime(2f);
         }
         else
         {
@@ -854,7 +887,22 @@ public class InputScreenManager : MonoBehaviour
                 "Export response: " +
                 exportWebRequest.downloadHandler.text
             );
+
+            downloadStatusText.text =
+                "The Dream Book download failed.\n" +
+                "Please try again.";
+
+            yield return new WaitForSecondsRealtime(4f);
         }
+
+        ResetDreamBookDownloadUI();
+    }
+
+    private void ResetDreamBookDownloadUI()
+    {
+        downloadStatusPanel.SetActive(false);
+        downloadDreamBookButton.interactable = true;
+        isExportingDreamBook = false;
     }
 
     [System.Serializable]
