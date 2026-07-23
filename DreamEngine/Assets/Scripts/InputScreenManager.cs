@@ -601,14 +601,16 @@ public class InputScreenManager : MonoBehaviour
 
 
         string imagePrompt =
-            $"Create a cinematic digital art scene inspired by this chapter: {storyContext}. " +
-            $"The player's dream is: {currentDream}. " +
-            $"The obstacles are: {currentObstacles}. " +
-            $"{GetImageStylePrompt()} " +
-            "Focus on atmosphere, symbolism, astrology, the occult, science, art, environment, and mood. " +
-            "Avoid showing a specific person unless necessary. " +
-            "Realistic anatomy, normal number of limbs, no extra legs, no distorted hands." + 
-            "If a person appears, show only a distant ambiguous silhouette.";
+    $"Create a dark, haunting, beautiful fantasy scene inspired by this chapter: {storyContext}. " +
+    $"The player's dream is: {currentDream}. " +
+    $"The obstacles are: {currentObstacles}. " +
+    $"{GetImageStylePrompt()} " +
+    "Render the scene as painterly fine art in the spirit of Zdzislaw Beksinski, HR Giger, Stephen Gammell, and the dramatic fantasy power of Frank Frazetta. " +
+    "Focus on atmosphere, symbolism, eerie beauty, occult mystery, surreal architecture, abandoned temples, impossible ruins, celestial omens, ancient forests, haunted landscapes, strange doors, forgotten relics, and uncanny environmental storytelling. " +
+    "Make the image feel psychologically unsettling, melancholic, dreamlike, and sublime. " +
+    "Prioritize landscape, objects, ruins, symbols, shadows, mist, moonlight, cosmic light, and fantastic scenery. " +
+    "Do not depict people, faces, hands, bodies, crowds, or portraits. " +
+    "If human presence is absolutely unavoidable, show only a tiny distant silhouette with no visible facial or anatomical detail.";
 
         string imageJson =
             JsonUtility.ToJson(new PromptRequest { prompt = imagePrompt });
@@ -700,7 +702,7 @@ public class InputScreenManager : MonoBehaviour
             return;
         }
 
-        redrawButtonText.text = "Rendering another dream fragment...";
+        redrawButtonText.text = "Rendering...";
 
         Debug.Log("Re-drawing current chapter image...");
         StartCoroutine(GenerateChapterImage(currentStory, currentChapterIndex));
